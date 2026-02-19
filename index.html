@@ -4,105 +4,81 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thai Banknote Recognition System</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-models/dist/coco-ssd"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 0;
-            padding: 0;
-        }
-        #webcam {
-            width: 100%;
-            height: auto;
-            display: none;
-        }
-        #canvas {
-            display: none;
-        }
-        .loading {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 24px;
-        }
-        @media (max-width: 600px) {
-            body {
-                font-size: 14px;
-            }
-        }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
+        video { width: 100%; max-width: 600px; }
+        #loading { display: none; }
     </style>
 </head>
 <body>
-    <h1>ระบบการจดจำธนบัตรไทย</h1>
-    <video id="webcam" autoplay></video>
-    <canvas id="canvas"></canvas>
-    <div class="loading">Loading...</div>
-    <div id="results"></div>
+    <h1>Thai Banknote Recognition System</h1>
+    <video id="video" autoplay></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <div id="loading">Loading model...</div>
+    <div id="result"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-layers@latest"></script>
     <script>
-        let confidenceThreshold = 0.85;
-        const video = document.getElementById('webcam');
-        const loading = document.querySelector('.loading');
+        const modelURL = "https://teachablemachine.withgoogle.com/models/smarteye/model.json";
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const resultDiv = document.getElementById('result');
+        const loadingDiv = document.getElementById('loading');
+        let model, isLoading = true;
 
-        async function setupCamera() {
+        async function initCamera() {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             video.srcObject = stream;
-            return new Promise((resolve) => {
-                video.onloadedmetadata = () => { resolve(video); };
-            });
         }
 
         async function loadModel() {
-            const model = await cocoSsd.load();
-            return model;
+            loadingDiv.style.display = 'block';
+            model = await tf.loadLayersModel(modelURL);
+            loadingDiv.style.display = 'none';
+            isLoading = false;
+            recognizeBanknote();
         }
 
-        async function recognize() {
-            loading.style.display = 'block';
-            const model = await loadModel();
-            await setupCamera();
-            video.play();
-            loading.style.display = 'none';
-
-            const detect = async () => {
-                const predictions = await model.detect(video);
-                processPredictions(predictions);
-                requestAnimationFrame(detect);
-            };
-            detect();
+        async function recognizeBanknote() {
+            if (isLoading) return;
+            const prediction = await getPrediction();
+            displayResult(prediction);
+            requestAnimationFrame(recognizeBanknote);
         }
 
-        function processPredictions(predictions) {
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = '';
-            let confidenceAlertSound = new Audio('alert.mp3');
-
-            predictions.forEach(prediction => {
-                const { class: label, score } = prediction;
-                if (score >= confidenceThreshold) {
-                    resultsDiv.innerHTML += `<p>${label}: ${Math.round(score * 100)}%</p>`;
-                } else if (score < confidenceThreshold) {
-                    confidenceAlertSound.play();
-                }
-            });
-
-            drawBarChart(predictions);
+        async function getPrediction() {
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const img = tf.browser.fromPixels(canvas);
+            const reshaped = img.expandDims(0).toFloat().div(tf.scalar(255));
+            const predictions = await model.predict(reshaped).data();
+            return predictions;
         }
 
-        function drawBarChart(predictions) {
-            const ctx = document.getElementById('canvas').getContext('2d');
-            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-            let labels = predictions.map(p => p.class);
-            let data = predictions.map(p => p.score);
+        function displayResult(predictions) {
+            const classes = ["20 baht", "50 baht", "100 baht", "500 baht", "1000 baht", "not banknote"];  
+            const confidenceThreshold = 0.85;
+            let maxIndex = predictions.indexOf(Math.max(...predictions));
+            let confidence = predictions[maxIndex];
 
-            // Here you can use Chart.js or any other library to draw the bar chart
-            // Implementation can depend on your preference
+            if (confidence > confidenceThreshold) {
+                resultDiv.innerHTML = `Recognized: ${classes[maxIndex]} with confidence: ${(confidence * 100).toFixed(2)}%`;
+                speak(classes[maxIndex]);
+            } else {
+                resultDiv.innerHTML = 'Not a valid banknote';
+            }
         }
 
-        recognize();
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'th-TH';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        window.onload = () => {
+            initCamera();
+            loadModel();
+        };
     </script>
 </body>
 </html>
