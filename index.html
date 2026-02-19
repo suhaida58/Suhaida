@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจดจำธนบัตรประเทศไทย</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #5a5a5a; }
+        button { margin-top: 10px; padding: 10px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>ระบบจดจำธนบัตรสำหรับผู้พิการทางสายตา</h1>
+    <p>คลิกปุ่มด้านล่างเพื่อเริ่มการจำแนกธนบัตร</p>
+    <button id="start">เริ่มจำแนกธนบัตร</button>
+    <p id="result"></p>
+
+    <script>
+        let model;
+        const speech = window.speechSynthesis;
+
+        // Load the model
+        async function loadModel() {
+            const modelURL = "https://teachablemachine.withgoogle.com/models/YOUR_MODEL_URL/model.json";
+            model = await tmImage.load(modelURL);
+        }
+
+        document.getElementById('start').onclick = async () => {
+            await loadModel();
+            const resultText = await classifyImage();
+            document.getElementById('result').textContent = resultText;
+            speak(resultText);
+        };
+
+        async function classifyImage() {
+            // Assume we have a function to capture image from the camera
+            const img = await captureImage();
+            const prediction = await model.predict(img);
+            return `ธนบัตรที่จำแนกได้คือ: ${prediction[0].className}`;
+        }
+
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speech.speak(utterance);
+        }
+
+        async function captureImage() {
+            // Implementation for image capturing from camera
+            // This should return an image element or a canvas element
+        }
+    </script>
+</body>
+</html>
