@@ -3,79 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thai Banknote Recognition System</title>
-    <link rel="stylesheet" href="styles.css"> <!-- Responsive Styles -->
+    <title>Thai Banknote Recognition</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        #canvas { display: none; }
+        #chartContainer { width: 50%; margin: auto; }
+        #loading { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    </style>
 </head>
 <body>
-    <h1>Thai Banknote Recognition System</h1>
-    <video id="video" width="320" height="240" autoplay></video>
-    <canvas id="canvas" width="320" height="240"></canvas>
-    <div id="result"></div>
-    <div id="confidence-alert" style="display: none;">ความไม่แน่นอนในการรู้จำสูง!</div>
+    <h1>ระบบการรู้จำธนบัตรไทย</h1>
+    <div id="loading">โหลดข้อมูล...</div>
     <div>
-        <canvas id="barChart"></canvas>
+        <video id="video" width="720" height="560" autoplay></video>
+        <button id="startButton">เริ่มกล้อง</button>
+        <button id="stopButton">หยุดกล้อง</button>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://teachablemachine.withgoogle.com/models/YOUR_MODEL_NAME_HERE/model.js"></script>
+    <div id="chartContainer">
+        <canvas id="myChart"></canvas>
+    </div>
     <script>
-        // Video streaming setup
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                const video = document.getElementById('video');
-                video.srcObject = stream;
-            });
-
-        // Teachable Machine Integration
-        const modelURL = "https://teachablemachine.withgoogle.com/models/YOUR_MODEL_NAME_HERE/";
-        let model, maxPredictions;
-        
-        async function init() {
-            const modelJson = modelURL + "model.json";
-            model = await tmImage.load(modelJson, modelURL + "metadata.json");
-            maxPredictions = model.getTotalClasses();
-            requestAnimationFrame(predict);
+        async function loadModel() {
+            const model = await tf.loadGraphModel('https://teachablemachine.withgoogle.com/models/smarteye/model.json');
+            return model;
         }
-        
-        async function predict() {
-            const prediction = await model.predict(canvas);
-            const sortedPredictions = prediction.sort((a, b) => b.probability - a.probability);
-            
-            const result = document.getElementById('result');
-            result.innerHTML = sortedPredictions.map(p => `${p.className}: ${p.probability.toFixed(2)}`).join('<br>');
-            
-            if (sortedPredictions[0].probability < 0.5) {
-                document.getElementById('confidence-alert').style.display = 'block';
-            } else {
-                document.getElementById('confidence-alert').style.display = 'none';
-                // Speech synthesis
-                const msg = new SpeechSynthesisUtterance(`คุณได้เลือก ${sortedPredictions[0].className}`);
-                msg.lang = 'th-TH';
-                window.speechSynthesis.speak(msg);
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then((stream) => {
+                    document.getElementById('video').srcObject = stream;
+                });
+        }
+        function stopCamera() {
+            const video = document.getElementById('video');
+            const stream = video.srcObject;
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach((track) => track.stop());
             }
-            requestAnimationFrame(predict);
+            video.srcObject = null;
         }
-
-        // Bar Chart Visualization
-        function updateChart(data) {
-            const ctx = document.getElementById('barChart').getContext('2d');
-            const chart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.map(d => d.className),
-                    datasets: [{
-                        label: 'Recognition Confidence',
-                        data: data.map(d => d.probability),
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true
-                }
-            });
+        function classifyImage(model) {
+            const video = document.getElementById('video');
+            // Additional classification code
         }
-
+        async function init() {
+            const model = await loadModel();
+            document.getElementById('loading').style.display = 'none';
+            startCamera();
+            setInterval(() => classifyImage(model), 1000);
+        }
+        document.getElementById('startButton').addEventListener('click', () => { startCamera(); });
+        document.getElementById('stopButton').addEventListener('click', () => { stopCamera(); });
         init();
     </script>
 </body>
