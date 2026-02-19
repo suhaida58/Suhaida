@@ -3,61 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thai Banknote Recognition</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Thai Banknote Recognition System</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-        #canvas { display: none; }
-        #chartContainer { width: 50%; margin: auto; }
-        #loading { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+        }
     </style>
 </head>
 <body>
     <h1>ระบบการรู้จำธนบัตรไทย</h1>
-    <div id="loading">โหลดข้อมูล...</div>
-    <div>
-        <video id="video" width="720" height="560" autoplay></video>
-        <button id="startButton">เริ่มกล้อง</button>
-        <button id="stopButton">หยุดกล้อง</button>
-    </div>
-    <div id="chartContainer">
-        <canvas id="myChart"></canvas>
-    </div>
+    <input type="file" id="banknoteInput" accept="image/*" />
+    <button onclick="recognizeBanknote()">รู้จำธนบัตร</button>
+    <div id="result"></div>
+
     <script>
-        async function loadModel() {
-            const model = await tf.loadGraphModel('https://teachablemachine.withgoogle.com/models/smarteye/model.json');
-            return model;
-        }
-        function startCamera() {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then((stream) => {
-                    document.getElementById('video').srcObject = stream;
-                });
-        }
-        function stopCamera() {
-            const video = document.getElementById('video');
-            const stream = video.srcObject;
-            if (stream) {
-                const tracks = stream.getTracks();
-                tracks.forEach((track) => track.stop());
+        function recognizeBanknote() {
+            const input = document.getElementById('banknoteInput');
+            if (input.files.length === 0) {
+                alert('กรุณาเลือกภาพธนบัตร');
+                return;
             }
-            video.srcObject = null;
+            const file = input.files[0];
+
+            // Simulate banknote recognition process
+            const recognizedValue = simulateBanknoteRecognition(file);
+            document.getElementById('result').innerHTML = `ธนบัตรที่รู้จำได้: ฿${recognizedValue}`;
         }
-        function classifyImage(model) {
-            const video = document.getElementById('video');
-            // Additional classification code
+
+        function simulateBanknoteRecognition(file) {
+            // Mock function for recognition - this should be replaced with actual recognition logic
+            return Math.floor(Math.random() * 1000); // Simulating a random value
         }
-        async function init() {
-            const model = await loadModel();
-            document.getElementById('loading').style.display = 'none';
-            startCamera();
-            setInterval(() => classifyImage(model), 1000);
-        }
-        document.getElementById('startButton').addEventListener('click', () => { startCamera(); });
-        document.getElementById('stopButton').addEventListener('click', () => { stopCamera(); });
-        init();
     </script>
 </body>
 </html>
