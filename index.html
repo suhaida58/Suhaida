@@ -3,54 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบจดจำธนบัตรประเทศไทย</title>
+    <title>Thai Banknote Recognition System</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-models/dist/coco-ssd"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #5a5a5a; }
-        button { margin-top: 10px; padding: 10px; font-size: 16px; }
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #webcam {
+            width: 100%;
+            height: auto;
+            display: none;
+        }
+        #canvas {
+            display: none;
+        }
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+        }
+        @media (max-width: 600px) {
+            body {
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>ระบบจดจำธนบัตรสำหรับผู้พิการทางสายตา</h1>
-    <p>คลิกปุ่มด้านล่างเพื่อเริ่มการจำแนกธนบัตร</p>
-    <button id="start">เริ่มจำแนกธนบัตร</button>
-    <p id="result"></p>
-
+    <h1>ระบบการจดจำธนบัตรไทย</h1>
+    <video id="webcam" autoplay></video>
+    <canvas id="canvas"></canvas>
+    <div class="loading">Loading...</div>
+    <div id="results"></div>
     <script>
-        let model;
-        const speech = window.speechSynthesis;
+        let confidenceThreshold = 0.85;
+        const video = document.getElementById('webcam');
+        const loading = document.querySelector('.loading');
 
-        // Load the model
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            return new Promise((resolve) => {
+                video.onloadedmetadata = () => { resolve(video); };
+            });
+        }
+
         async function loadModel() {
-            const modelURL = "https://teachablemachine.withgoogle.com/models/YOUR_MODEL_URL/model.json";
-            model = await tmImage.load(modelURL);
+            const model = await cocoSsd.load();
+            return model;
         }
 
-        document.getElementById('start').onclick = async () => {
-            await loadModel();
-            const resultText = await classifyImage();
-            document.getElementById('result').textContent = resultText;
-            speak(resultText);
-        };
+        async function recognize() {
+            loading.style.display = 'block';
+            const model = await loadModel();
+            await setupCamera();
+            video.play();
+            loading.style.display = 'none';
 
-        async function classifyImage() {
-            // Assume we have a function to capture image from the camera
-            const img = await captureImage();
-            const prediction = await model.predict(img);
-            return `ธนบัตรที่จำแนกได้คือ: ${prediction[0].className}`;
+            const detect = async () => {
+                const predictions = await model.detect(video);
+                processPredictions(predictions);
+                requestAnimationFrame(detect);
+            };
+            detect();
         }
 
-        function speak(text) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            speech.speak(utterance);
+        function processPredictions(predictions) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            let confidenceAlertSound = new Audio('alert.mp3');
+
+            predictions.forEach(prediction => {
+                const { class: label, score } = prediction;
+                if (score >= confidenceThreshold) {
+                    resultsDiv.innerHTML += `<p>${label}: ${Math.round(score * 100)}%</p>`;
+                } else if (score < confidenceThreshold) {
+                    confidenceAlertSound.play();
+                }
+            });
+
+            drawBarChart(predictions);
         }
 
-        async function captureImage() {
-            // Implementation for image capturing from camera
-            // This should return an image element or a canvas element
+        function drawBarChart(predictions) {
+            const ctx = document.getElementById('canvas').getContext('2d');
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            let labels = predictions.map(p => p.class);
+            let data = predictions.map(p => p.score);
+
+            // Here you can use Chart.js or any other library to draw the bar chart
+            // Implementation can depend on your preference
         }
+
+        recognize();
     </script>
 </body>
 </html>
