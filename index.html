@@ -4,81 +4,79 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thai Banknote Recognition System</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
-        video { width: 100%; max-width: 600px; }
-        #loading { display: none; }
-    </style>
+    <link rel="stylesheet" href="styles.css"> <!-- Responsive Styles -->
 </head>
 <body>
     <h1>Thai Banknote Recognition System</h1>
-    <video id="video" autoplay></video>
-    <canvas id="canvas" style="display:none;"></canvas>
-    <div id="loading">Loading model...</div>
+    <video id="video" width="320" height="240" autoplay></video>
+    <canvas id="canvas" width="320" height="240"></canvas>
     <div id="result"></div>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-layers@latest"></script>
+    <div id="confidence-alert" style="display: none;">ความไม่แน่นอนในการรู้จำสูง!</div>
+    <div>
+        <canvas id="barChart"></canvas>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://teachablemachine.withgoogle.com/models/YOUR_MODEL_NAME_HERE/model.js"></script>
     <script>
-        const modelURL = "https://teachablemachine.withgoogle.com/models/smarteye/model.json";
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const resultDiv = document.getElementById('result');
-        const loadingDiv = document.getElementById('loading');
-        let model, isLoading = true;
+        // Video streaming setup
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+            });
 
-        async function initCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
+        // Teachable Machine Integration
+        const modelURL = "https://teachablemachine.withgoogle.com/models/YOUR_MODEL_NAME_HERE/";
+        let model, maxPredictions;
+        
+        async function init() {
+            const modelJson = modelURL + "model.json";
+            model = await tmImage.load(modelJson, modelURL + "metadata.json");
+            maxPredictions = model.getTotalClasses();
+            requestAnimationFrame(predict);
         }
-
-        async function loadModel() {
-            loadingDiv.style.display = 'block';
-            model = await tf.loadLayersModel(modelURL);
-            loadingDiv.style.display = 'none';
-            isLoading = false;
-            recognizeBanknote();
-        }
-
-        async function recognizeBanknote() {
-            if (isLoading) return;
-            const prediction = await getPrediction();
-            displayResult(prediction);
-            requestAnimationFrame(recognizeBanknote);
-        }
-
-        async function getPrediction() {
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const img = tf.browser.fromPixels(canvas);
-            const reshaped = img.expandDims(0).toFloat().div(tf.scalar(255));
-            const predictions = await model.predict(reshaped).data();
-            return predictions;
-        }
-
-        function displayResult(predictions) {
-            const classes = ["20 baht", "50 baht", "100 baht", "500 baht", "1000 baht", "not banknote"];  
-            const confidenceThreshold = 0.85;
-            let maxIndex = predictions.indexOf(Math.max(...predictions));
-            let confidence = predictions[maxIndex];
-
-            if (confidence > confidenceThreshold) {
-                resultDiv.innerHTML = `Recognized: ${classes[maxIndex]} with confidence: ${(confidence * 100).toFixed(2)}%`;
-                speak(classes[maxIndex]);
+        
+        async function predict() {
+            const prediction = await model.predict(canvas);
+            const sortedPredictions = prediction.sort((a, b) => b.probability - a.probability);
+            
+            const result = document.getElementById('result');
+            result.innerHTML = sortedPredictions.map(p => `${p.className}: ${p.probability.toFixed(2)}`).join('<br>');
+            
+            if (sortedPredictions[0].probability < 0.5) {
+                document.getElementById('confidence-alert').style.display = 'block';
             } else {
-                resultDiv.innerHTML = 'Not a valid banknote';
+                document.getElementById('confidence-alert').style.display = 'none';
+                // Speech synthesis
+                const msg = new SpeechSynthesisUtterance(`คุณได้เลือก ${sortedPredictions[0].className}`);
+                msg.lang = 'th-TH';
+                window.speechSynthesis.speak(msg);
             }
+            requestAnimationFrame(predict);
         }
 
-        function speak(text) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'th-TH';
-            window.speechSynthesis.speak(utterance);
+        // Bar Chart Visualization
+        function updateChart(data) {
+            const ctx = document.getElementById('barChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.className),
+                    datasets: [{
+                        label: 'Recognition Confidence',
+                        data: data.map(d => d.probability),
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            });
         }
 
-        window.onload = () => {
-            initCamera();
-            loadModel();
-        };
+        init();
     </script>
 </body>
 </html>
